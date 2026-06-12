@@ -60,7 +60,7 @@ The system evaluates passwords using:
 
 | Password        | Strength |
 | --------------- | -------- |
-| password123     | Weak     |
+| 123             | Weak     |
 | MyPassword123   | Medium   |
 | M@sterKey#2026! | Strong   |
 
