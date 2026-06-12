@@ -1,0 +1,345 @@
+ <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DecodeLabs - Password Strength Checker</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+      color: #fff;
+      min-height: 100vh;
+      padding: 20px;
+      transition: all 0.4s;
+    }
+    body.light {
+      background: linear-gradient(135deg, #f0f4f8, #d9e2ec, #b8c6db);
+      color: #1a1a2e;
+    }
+    .container {
+      max-width: 720px;
+      margin: 40px auto;
+      background: rgba(255,255,255,0.08);
+      backdrop-filter: blur(12px);
+      border-radius: 20px;
+      padding: 40px 30px;
+      box-shadow: 0 15px 35px rgba(0,0,0,0.4);
+      border: 1px solid rgba(255,255,255,0.1);
+      transition: all 0.4s;
+    }
+    body.light .container {
+      background: rgba(255,255,255,0.95);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+      border-color: #ccc;
+    }
+    h1 { text-align: center; margin-bottom: 8px; font-size: 2.3rem; }
+    .subtitle { text-align: center; color: #00ff9d; margin-bottom: 30px; }
+    body.light .subtitle { color: #0066cc; }
+
+    .input-group {
+      position: relative;
+      margin-bottom: 20px;
+    }
+    input {
+      width: 100%;
+      padding: 18px 55px 18px 20px;
+      font-size: 1.3rem;
+      border: 2px solid #444;
+      border-radius: 12px;
+      background: #1a1a2e;
+      color: white;
+    }
+    body.light input {
+      background: white;
+      color: #1a1a2e;
+      border-color: #999;
+    }
+    .input-group button {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: #aaa;
+      font-size: 1.4rem;
+      cursor: pointer;
+      padding: 8px;
+    }
+
+    .strength-meter {
+      height: 14px;
+      background: #333;
+      border-radius: 10px;
+      margin: 20px 0;
+      overflow: hidden;
+    }
+    body.light .strength-meter { background: #ddd; }
+    .strength-bar {
+      height: 100%;
+      width: 0%;
+      transition: all 0.4s ease;
+    }
+
+    .controls {
+      display: flex;
+      gap: 12px;
+      margin: 15px 0;
+    }
+
+    .checks {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: 25px 0;
+    }
+    .check-item { display: flex; align-items: center; gap: 10px; font-size: 1.1rem; }
+
+    .feedback {
+      margin-top: 20px;
+      padding: 18px;
+      border-radius: 12px;
+      min-height: 100px;
+    }
+
+    .history {
+      margin-top: 30px;
+      padding-top: 20px;
+      border-top: 1px solid rgba(255,255,255,0.2);
+    }
+    body.light .history { border-color: #ccc; }
+    .history-item {
+      padding: 12px;
+      background: rgba(0,0,0,0.2);
+      border-radius: 10px;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    body.light .history-item { background: rgba(0,0,0,0.08); }
+
+    button {
+      padding: 12px 20px;
+      background: #00ff9d;
+      color: black;
+      border: none;
+      border-radius: 10px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .theme-toggle {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      font-size: 1.6rem;
+      background: none;
+      border: none;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <button class="theme-toggle" id="themeToggle">🌙</button>
+
+  <div class="container">
+    <h1>🔐 Advanced Password Checker</h1>
+
+    <div class="input-group">
+      <input type="password" id="password" placeholder="Enter your password..." autocomplete="off">
+      <button id="toggleVisibility">👁️</button>
+      <button id="copyBtn" style="right: 50px;">📋</button>
+    </div>
+
+    <div class="strength-meter">
+      <div id="strengthBar" class="strength-bar"></div>
+    </div>
+
+    <div id="strengthText" style="text-align:center; font-size:1.6rem; font-weight:bold; margin:10px 0;"></div>
+
+    <div class="controls">
+      <button onclick="generatePassword()">Generate Strong Password</button>
+      <button onclick="clearHistory()">Clear History</button>
+    </div>
+
+    <div class="checks" id="checks"></div>
+    <div class="entropy" id="entropy"></div>
+    <div id="feedback" class="feedback"></div>
+
+    <div class="history">
+      <h3>📜 Recent Password Checks</h3>
+      <div id="historyList"></div>
+    </div>
+  </div>
+
+  <script>
+    const COMMON_PASSWORDS = new Set(["password","123456","12345678","qwerty","abc123","password123","admin","letmein","welcome","monkey","123456789","iloveyou","1234567","sunshine","princess","admin123","password1","123123","football","baseball","superman","trustno1"]);
+
+    let history = JSON.parse(localStorage.getItem('passwordHistory')) || [];
+
+    function saveToHistory(password, strength, entropy) {
+      if (!password) return;
+      history.unshift({
+        password: password.length > 20 ? password.substring(0,17) + "..." : password,
+        strength,
+        entropy,
+        time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
+      });
+      if (history.length > 8) history.pop();
+      localStorage.setItem('passwordHistory', JSON.stringify(history));
+      renderHistory();
+    }
+
+    function renderHistory() {
+      const list = document.getElementById('historyList');
+      list.innerHTML = history.map(item => `
+        <div class="history-item">
+          <div><strong>${item.password}</strong> <span style="color:#888">(${item.time})</span></div>
+          <span style="color:${item.strength === 'Strong' ? '#66ff99' : item.strength === 'Medium' ? '#ffdd66' : '#ff6666'}">
+            ${item.strength} (${item.entropy} bits)
+          </span>
+        </div>
+      `).join('');
+    }
+
+    function calculateEntropy(password) {
+      if (!password) return 0;
+      let pool = 0;
+      if (/[a-z]/.test(password)) pool += 26;
+      if (/[A-Z]/.test(password)) pool += 26;
+      if (/[0-9]/.test(password)) pool += 10;
+      if (/[!@#$%^&*()_+\-=\[\]{}|;:,.<>/?~`]/.test(password)) pool += 32;
+      if (pool === 0) pool = 95;
+      return Math.round(password.length * Math.log2(pool) * 100) / 100;
+    }
+
+    function checkPassword() {
+      const password = document.getElementById('password').value.trim();
+      const strengthBar = document.getElementById('strengthBar');
+      const strengthText = document.getElementById('strengthText');
+      const entropyEl = document.getElementById('entropy');
+      const feedbackEl = document.getElementById('feedback');
+      const checksEl = document.getElementById('checks');
+
+      if (!password) {
+        strengthBar.style.width = '0%';
+        strengthText.textContent = '';
+        entropyEl.textContent = '';
+        feedbackEl.innerHTML = '';
+        checksEl.innerHTML = '';
+        return;
+      }
+
+      const length = password.length;
+      const hasUpper = /[A-Z]/.test(password);
+      const hasLower = /[a-z]/.test(password);
+      const hasDigit = /[0-9]/.test(password);
+      const hasSpecial = /[!@#$%^&*()_+\-=\[\]{}|;:,.<>/?~`]/.test(password);
+      const entropy = calculateEntropy(password);
+
+      let score = 0;
+      let feedback = [];
+
+      if (COMMON_PASSWORDS.has(password.toLowerCase())) {
+        feedback.push("❌ This password is very common and easily guessable!");
+      }
+
+      if (length >= 14) score += 3;
+      else if (length >= 10) score += 2;
+      else if (length >= 8) score += 1;
+      else feedback.push("❌ Password is too short. Use at least 12 characters.");
+
+      if (hasUpper) score += 1; else feedback.push("❌ Add uppercase (A-Z)");
+      if (hasLower) score += 1; else feedback.push("❌ Add lowercase (a-z)");
+      if (hasDigit) score += 1; else feedback.push("❌ Add a number (0-9)");
+      if (hasSpecial) score += 2; else feedback.push("❌ Add special character (!@#$%)");
+
+      let strength, barColor, textColor;
+      if (COMMON_PASSWORDS.has(password.toLowerCase()) || score <= 4 || entropy < 40) {
+        strength = "Weak"; barColor = "#ff4444"; textColor = "#ff6666";
+      } else if (score <= 7 || entropy < 60) {
+        strength = "Medium"; barColor = "#ffaa00"; textColor = "#ffdd66";
+      } else {
+        strength = "Strong"; barColor = "#00ff88"; textColor = "#66ff99";
+      }
+
+      const percentage = Math.min(100, (score * 11) + (entropy / 1.2));
+      strengthBar.style.width = `${percentage}%`;
+      strengthBar.style.background = barColor;
+
+      strengthText.textContent = strength;
+      strengthText.style.color = textColor;
+      entropyEl.innerHTML = `🔢 <strong>Entropy:</strong> ${entropy} bits`;
+
+      checksEl.innerHTML = `
+        <div class="check-item">${hasLower ? '✅' : '❌'} Lowercase</div>
+        <div class="check-item">${hasUpper ? '✅' : '❌'} Uppercase</div>
+        <div class="check-item">${hasDigit ? '✅' : '❌'} Number</div>
+        <div class="check-item">${hasSpecial ? '✅' : '❌'} Special</div>
+        <div class="check-item">${length >= 12 ? '✅' : '❌'} 12+ characters</div>
+      `;
+
+      feedbackEl.innerHTML = feedback.length ? 
+        feedback.map(m => `<p>${m}</p>`).join('') : 
+        `<p style="color:#66ff99">✅ Great! This is a strong and secure password.</p>`;
+
+      feedbackEl.className = `feedback ${strength.toLowerCase()}`;
+
+      // Save to history
+      saveToHistory(password, strength, entropy);
+    }
+
+    function generatePassword() {
+      const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=[]{}|;:,.<>/?~";
+      let pass = "";
+      for (let i = 0; i < 16; i++) {
+        pass += chars[Math.floor(Math.random() * chars.length)];
+      }
+      document.getElementById('password').value = pass;
+      checkPassword();
+    }
+
+    function clearHistory() {
+      if (confirm("Clear all password history?")) {
+        history = [];
+        localStorage.removeItem('passwordHistory');
+        renderHistory();
+      }
+    }
+
+    // Event Listeners
+    const passwordInput = document.getElementById('password');
+    passwordInput.addEventListener('input', checkPassword);
+
+    // Toggle Visibility
+    document.getElementById('toggleVisibility').addEventListener('click', () => {
+      const type = passwordInput.type === 'password' ? 'text' : 'password';
+      passwordInput.type = type;
+      this.textContent = type === 'password' ? '👁️' : '🙈';
+    });
+
+    // Copy Button
+    document.getElementById('copyBtn').addEventListener('click', () => {
+      const pass = passwordInput.value;
+      if (pass) {
+        navigator.clipboard.writeText(pass).then(() => {
+          const orig = this.textContent;
+          this.textContent = '✅';
+          setTimeout(() => this.textContent = orig, 1500);
+        });
+      }
+    });
+
+    // Theme Toggle
+    document.getElementById('themeToggle').addEventListener('click', () => {
+      document.body.classList.toggle('light');
+      const isLight = document.body.classList.contains('light');
+      this.textContent = isLight ? '☀️' : '🌙';
+    });
+
+    // Load history on start
+    renderHistory();
+  </script>
+</body>
