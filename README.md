@@ -65,27 +65,7 @@ The system evaluates passwords using:
 | M@sterKey#2026! | Strong   |
 
 ---
-
-## How to Run
-
-### Python Version
-
-```bash
-python password_checker.py
-```
-
-### Web Version
-
-Simply open:
-
-```bash
-index.html
-```
-
-in any modern web browser.
-
----
-
+ 
 ## Cybersecurity Concepts Demonstrated
 
 * Password Security
